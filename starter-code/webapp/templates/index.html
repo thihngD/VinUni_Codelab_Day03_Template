@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab #3 Demo — Chatbot vs ReAct Agent</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <h1>✈️ Vingroup Travel Assistant — Lab #3 Demo</h1>
+      <p class="subtitle">So sánh Chatbot Baseline vs ReAct Agent (bản rule-based &amp; bản gọi Gemini API thật)</p>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="data">📊 Dữ liệu dự án</button>
+    <button class="tab-btn" data-tab="agent">🤖 Chạy thử Agent</button>
+  </nav>
+
+  <main>
+    <!-- TAB 1: DATA -->
+    <section id="tab-data" class="tab-panel active">
+      <div class="grid-2">
+        <div class="card">
+          <h2>🛫 flight_data.json</h2>
+          <div class="table-wrap">
+            <table id="flights-table">
+              <thead>
+                <tr><th>Mã chuyến</th><th>Hãng</th><th>Chặng</th><th>Giờ bay</th><th>Giá (VND)</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🌦️ weather_data.json</h2>
+          <div class="table-wrap">
+            <table id="weather-table">
+              <thead>
+                <tr><th>Mã</th><th>Thành phố</th><th>Nhiệt độ</th><th>Tình trạng</th><th>Độ ẩm</th><th>Gợi ý trang phục</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📋 customer_queries.json (bộ câu hỏi mẫu)</h2>
+        <div id="queries-list" class="queries-list"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: AGENT PLAYGROUND -->
+    <section id="tab-agent" class="tab-panel">
+      <div class="card">
+        <h2>Chọn chế độ Agent</h2>
+        <div class="mode-grid">
+          <label class="mode-card">
+            <input type="radio" name="mode" value="baseline_rule" checked>
+            <div>
+              <strong>Chatbot Baseline</strong>
+              <span class="badge badge-rule">Rule-based</span>
+              <p>Không dùng tool, trả lời chung chung / dễ bịa thông tin.</p>
+            </div>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="baseline_ai">
+            <div>
+              <strong>Chatbot Baseline</strong>
+              <span class="badge badge-ai">Gemini AI</span>
+              <p>Gọi LLM 1 lượt, không có quyền truy cập dữ liệu thật.</p>
+            </div>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="react_rule">
+            <div>
+              <strong>ReAct Agent</strong>
+              <span class="badge badge-rule">Rule-based</span>
+              <p>Thought→Action→Observation mô phỏng bằng keyword/regex.</p>
+            </div>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="react_ai">
+            <div>
+              <strong>ReAct Agent</strong>
+              <span class="badge badge-ai">Gemini Pro</span>
+              <p>LLM tự sinh Thought/Action thật, tự gọi tool trong TOOL_MAP.</p>
+            </div>
+          </label>
+        </div>
+
+        <div id="max-iter-wrap" class="field-row" hidden>
+          <label for="max-iter">Max iterations:</label>
+          <input type="number" id="max-iter" min="1" max="10" value="5">
+        </div>
+
+        <div class="field-row">
+          <div class="label-row">
+            <label for="system-prompt-input">System Prompt <span id="system-prompt-hint" class="hint"></span></label>
+            <div class="prompt-actions">
+              <button type="button" id="load-default-prompt" class="chip">🔄 Lấy / Reset prompt mặc định</button>
+            </div>
+          </div>
+          <textarea id="system-prompt-input" rows="9"
+            placeholder="Chỉ áp dụng cho chế độ Gemini AI. Chọn 'Chatbot Baseline (Gemini AI)' hoặc 'ReAct Agent (Gemini Pro)' rồi bấm 'Lấy prompt mặc định' để tải, sau đó có thể chỉnh sửa tuỳ ý trước khi Chạy."></textarea>
+        </div>
+
+        <div class="field-row">
+          <label for="query-input">Câu hỏi khách hàng:</label>
+          <textarea id="query-input" rows="2" placeholder="Nhập câu hỏi hoặc chọn mẫu bên dưới..."></textarea>
+        </div>
+
+        <div id="sample-chips" class="chips"></div>
+
+        <button id="run-btn" class="run-btn">▶ Chạy</button>
+        <span id="run-status" class="run-status"></span>
+      </div>
+
+      <div id="result-card" class="card" hidden>
+        <div class="result-header">
+          <h2>Kết quả</h2>
+          <div id="result-meta" class="result-meta"></div>
+        </div>
+        <div id="result-error" class="error-box" hidden></div>
+        <div id="result-answer" class="answer-box"></div>
+        <h3 id="trace-title" hidden>🧠 Trace (Thought → Action → Observation)</h3>
+        <div id="trace-list" class="trace-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Lab #3 — VinUni AI Training Program · Demo UI chạy local, không public dữ liệu/API key.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
