@@ -257,6 +257,19 @@ class ReActAgent:
         return content
 
     def run(self, user_input: str) -> dict:
+        """Chạy đến khi có kết quả cuối cùng, trả về dict (không quan tâm các bước trung gian)."""
+        result = None
+        for kind, payload in self.run_iter(user_input):
+            if kind == "done":
+                result = payload
+        return result
+
+    def run_iter(self, user_input: str):
+        """
+        Generator: yield ("step", step_dict) NGAY SAU KHI mỗi vòng lặp Thought/Action/Observation
+        hoàn tất (dùng cho UI hiển thị tiến trình xử lý real-time), rồi yield ("done", result_dict)
+        khi có kết quả cuối cùng. `run()` chỉ là wrapper gọi hàm này và lấy phần "done".
+        """
         self.trace = []
         self.used_fallback = False
         self.last_model_used = self.model_chain[0]
@@ -291,13 +304,15 @@ class ReActAgent:
                 # Trap 2: Action không phải JSON hợp lệ.
                 if action_obj is None:
                     observation_text = "Invalid JSON format. Action phải là JSON hợp lệ dạng {\"name\": ..., \"args\": {...}}."
-                    self.trace.append({
+                    step = {
                         "iteration": iteration,
                         "thought": thought,
                         "action_raw": action_raw,
                         "action": None,
                         "observation": observation_text,
-                    })
+                    }
+                    self.trace.append(step)
+                    yield "step", step
                     messages.append({"role": "user", "content": f"Observation: {observation_text}"})
                     continue
 
@@ -317,12 +332,14 @@ class ReActAgent:
                 is_error = isinstance(observation, dict) and "error" in observation
                 consecutive_tool_errors = consecutive_tool_errors + 1 if is_error else 0
 
-                self.trace.append({
+                step = {
                     "iteration": iteration,
                     "thought": thought,
                     "action": {"name": tool_name, "args": tool_args},
                     "observation": observation,
-                })
+                }
+                self.trace.append(step)
+                yield "step", step
 
                 observation_text = (
                     observation if isinstance(observation, str)
@@ -342,13 +359,15 @@ class ReActAgent:
 
             if has_final:
                 answer = extract_after_marker(raw_text, "Final Answer:") or raw_text.strip()
-                self.trace.append({
+                step = {
                     "iteration": iteration,
                     "thought": thought,
                     "action": None,
                     "observation": None,
-                })
-                return {
+                }
+                self.trace.append(step)
+                yield "step", step
+                yield "done", {
                     "status": "completed",
                     "iterations": iteration,
                     "trace": self.trace,
@@ -356,14 +375,17 @@ class ReActAgent:
                     "model": self.last_model_used,
                     "model_fallback": self.used_fallback,
                 }
+                return
 
             # LLM trả về sai định dạng (không có cả Action lẫn Final Answer) -> nhắc lại format.
-            self.trace.append({
+            step = {
                 "iteration": iteration,
                 "thought": raw_text.strip(),
                 "action": None,
                 "observation": "format_error",
-            })
+            }
+            self.trace.append(step)
+            yield "step", step
             messages.append({
                 "role": "user",
                 "content": (
@@ -372,7 +394,7 @@ class ReActAgent:
                 ),
             })
 
-        return {
+        yield "done", {
             "status": "max_iterations_reached",
             "iterations": iteration,
             "trace": self.trace,
